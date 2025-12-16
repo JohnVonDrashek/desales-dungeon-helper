@@ -1,0 +1,63 @@
+name: Wiki Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+  workflow_dispatch:
+
+jobs:
+  sync-wiki:
+    name: Sync Docs to Wiki
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync to Wiki
+        uses: Andrew-Chen-Wang/github-wiki-action@v4
+        with:
+          path: docs
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  generate-api-docs:
+    name: Generate API Documentation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build with XML documentation
+        run: dotnet build -c Release
+
+      - name: Install DocFX
+        run: dotnet tool install -g docfx
+        continue-on-error: true
+
+      - name: Generate API docs
+        run: |
+          if command -v docfx &> /dev/null && [ -f "docfx.json" ]; then
+            docfx docfx.json
+          else
+            echo "DocFX not configured, skipping API docs generation"
+          fi
+        continue-on-error: true
+
+      - name: Upload API docs artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: api-docs
+          path: _site/
+          if-no-files-found: ignore
