@@ -69,3 +69,7 @@ Or add a project reference if building from source.
 ## License
 
 MIT License - See the repository for details.
+
+## Source
+
+[GitHub Repository](https://github.com/JohnVonDrashek/desales-dungeon-helper)
