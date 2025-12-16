@@ -18,4 +18,4 @@ jobs:
         uses: Andrew-Chen-Wang/github-wiki-action@v4
         with:
           path: docs/wiki
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.WIKI_PUSH_TOKEN }}
