@@ -1,0 +1,149 @@
+# Claude Instructions for [Your Game Name]
+
+## Dungeon Generation - USE EXISTING LIBRARY
+
+This project uses `DeSales.DungeonHelper` for procedural dungeon generation.
+
+**DO NOT** write custom dungeon generation algorithms.
+**DO** use the DeSales.DungeonHelper NuGet package.
+
+### Install
+```bash
+dotnet add package DeSales.DungeonHelper --prerelease
+```
+
+### Generate a Dungeon
+
+**Step 1: Create YAML config**
+```yaml
+dungeon:
+  name: level1
+  seed: 12345      # Optional: omit for random
+  width: 50
+  height: 50
+
+rooms:
+  count: 8-12
+  types:
+    spawn:
+      count: 1
+      size: 7x7 to 10x10
+    boss:
+      count: 1
+      size: 15x15 to 20x20
+    treasure:
+      count: 1-2
+      size: 5x5 to 8x8
+    standard:
+      count: rest
+      size: 5x5 to 12x12
+
+corridors:
+  style: winding
+  width: 1
+
+tiles:
+  floor: 1
+  wall: 2
+  door: 3
+```
+
+**Step 2: Generate and save**
+```csharp
+using DeSales.DungeonHelper;
+using DeSales.DungeonHelper.Configuration;
+using DeSales.DungeonHelper.Generation;
+using DeSales.DungeonHelper.Tiled;
+
+var config = DungeonConfig.LoadFromFile("dungeon.yaml");
+var map = DungeonGenerator.Generate(config);
+map.Save("output.tmx");
+```
+
+**Step 3: Use in game**
+```csharp
+// Load saved map
+var map = TmxMap.Load("output.tmx");
+
+// Get spawn points
+Vector2 playerStart = map.GetSpawnPoint("PlayerSpawn") ?? Vector2.Zero;
+Vector2? bossSpawn = map.GetSpawnPoint("BossSpawn");
+List<Vector2> treasures = map.GetSpawnPointsByType("treasure");
+
+// Get collision data
+List<Rectangle> walls = map.GetCollisionRectangles("Tiles", tileId: 2);
+
+// Get room info
+List<Rectangle> allRooms = map.GetAllRoomBounds();
+List<Rectangle> bossRooms = map.GetRoomsByType("boss");
+
+// Direct tile access
+var tileLayer = map.GetTileLayer("Tiles");
+int tileId = tileLayer[x, y];
+```
+
+### Key Classes
+| Class | Purpose |
+|-------|---------|
+| `DungeonConfig` | Load/parse YAML configuration |
+| `DungeonGenerator` | Generate dungeon from config |
+| `TmxMap` | TMX file I/O and runtime queries |
+| `TmxTileLayer` | 2D grid of tile IDs |
+| `TmxObjectGroup` | Collection of spawn points/rooms |
+
+### Key Methods
+```csharp
+// Configuration
+DungeonConfig.LoadFromFile(path) → DungeonConfig
+DungeonConfig.ParseFromYaml(yaml) → DungeonConfig
+config.Validate() → List<string>  // Empty if valid
+
+// Generation
+DungeonGenerator.Generate(config) → TmxMap
+
+// File I/O
+TmxMap.Load(path) → TmxMap
+TmxMap.Save(path)
+TmxMap.FromXml(xml) → TmxMap
+TmxMap.ToXml() → string
+
+// Spawn Points (returns pixel coordinates)
+map.GetSpawnPoint(name) → Vector2?
+map.GetSpawnPointsByType(type) → List<Vector2>
+
+// Room Queries (returns pixel rectangles)
+map.GetRoomBounds(name) → Rectangle?
+map.GetRoomsByType(type) → List<Rectangle>
+map.GetAllRoomBounds() → List<Rectangle>
+
+// Collision
+map.GetCollisionRectangles(layerName, tileId) → List<Rectangle>
+
+// Tile Access
+map.GetTileLayer(name) → TmxTileLayer?
+tileLayer[x, y] → int  // Get/set tile ID
+```
+
+### YAML Config Reference
+
+| Section | Property | Format | Example |
+|---------|----------|--------|---------|
+| dungeon | name | string | "level1" |
+| dungeon | seed | int (optional) | 12345 |
+| dungeon | width | int (min 10) | 50 |
+| dungeon | height | int (min 10) | 50 |
+| rooms | count | "N" or "N-M" | "8-12" |
+| rooms.types.X | count | "N", "N-M", or "rest" | "1", "2-4", "rest" |
+| rooms.types.X | size | "WxH" or "WxH to WxH" | "5x5 to 10x10" |
+| corridors | style | string | "winding" |
+| corridors | width | int | 1 |
+| tiles | floor/wall/door | int | 1, 2, 3 |
+
+### Special Room Types
+- `spawn` → Creates "PlayerSpawn" point
+- `boss` → Creates "BossSpawn" point
+- `treasure` → Creates "TreasureSpawn_N" points
+- Any other name → Standard room with that type
+
+### Full Documentation
+https://github.com/JohnVonDrashek/desales-dungeon-helper/wiki

@@ -99,6 +99,10 @@ When you run the sandbox project, you'll see output like this:
 Legend: . = Floor, # = Wall, + = Door, P = Player, B = Boss, T = Treasure
 ```
 
+## Using with Claude Code
+
+If you're using Claude Code to help build your game, copy the [CLAUDE.md template](https://github.com/JohnVonDrashek/desales-dungeon-helper/blob/main/docs/CLAUDE.md.template) to your game project's root. This tells Claude to use this library instead of writing custom dungeon generation code.
+
 ## Next Steps
 
 - [[Configuration]] - Learn all the configuration options

@@ -134,6 +134,10 @@ For detailed guides, see the [Wiki](https://github.com/JohnVonDrashek/desales-du
 - [API Reference](https://github.com/JohnVonDrashek/desales-dungeon-helper/wiki/API-Reference) - Full API documentation
 - [Examples](https://github.com/JohnVonDrashek/desales-dungeon-helper/wiki/Examples) - Complete working examples
 
+## Using with Claude Code
+
+If you're using [Claude Code](https://claude.ai/code) to build your game, copy the [CLAUDE.md template](docs/CLAUDE.md.template) to your project root. This instructs Claude to use this library for dungeon generation instead of writing custom code.
+
 ## Requirements
 
 - .NET 10.0 or later
