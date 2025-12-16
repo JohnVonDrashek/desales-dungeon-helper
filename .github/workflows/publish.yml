@@ -39,7 +39,12 @@ jobs:
         run: dotnet pack src/DeSales.DungeonHelper/DeSales.DungeonHelper.csproj --no-build -c Release -o ./artifacts
 
       - name: Push to NuGet
-        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          for package in ./artifacts/*.nupkg; do
+            if [[ ! "$package" == *.snupkg ]]; then
+              dotnet nuget push "$package" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+            fi
+          done
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
