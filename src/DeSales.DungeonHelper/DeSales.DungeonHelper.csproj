@@ -3,13 +3,21 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>DeSales.DungeonHelper</PackageId>
-    <Description>An intuitive dungeon generation library for MonoGame. Define dungeons in human-readable YAML, generate with deterministic seeds, and export to Tiled-compatible .tmx files.</Description>
-    <PackageTags>monogame;dungeon;procedural-generation;tiled;game-development;roguelike</PackageTags>
+    <Version>1.0.0-preview.1</Version>
+    <Authors>John VonDrashek</Authors>
+    <Company>John VonDrashek</Company>
+    <Description>Procedural dungeon generation library for MonoGame. Define dungeons in human-readable YAML, generate with deterministic seeds, and export to Tiled-compatible TMX files. Features include configurable room types, automatic corridor generation, spawn points, and runtime helpers for collision detection.</Description>
+    <PackageTags>monogame;dungeon;procedural-generation;tiled;tmx;game-development;roguelike;yaml;2d;gamedev</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/JohnVonDrashek/desales-dungeon-helper</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/JohnVonDrashek/desales-dungeon-helper</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <EnablePackageValidation>true</EnablePackageValidation>
     <RootNamespace>DeSales.DungeonHelper</RootNamespace>
+    <Copyright>Copyright (c) 2025 John VonDrashek</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

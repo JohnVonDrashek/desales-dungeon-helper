@@ -18,11 +18,11 @@
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
 
     <!-- Package metadata -->
-    <Authors>DeSales</Authors>
-    <Company>DeSales</Company>
-    <Copyright>Copyright (c) $([System.DateTime]::Now.Year) DeSales</Copyright>
-    <PackageProjectUrl>https://github.com/gfelter/desales-dungeon-helper</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/gfelter/desales-dungeon-helper</RepositoryUrl>
+    <Authors>John VonDrashek</Authors>
+    <Company>John VonDrashek</Company>
+    <Copyright>Copyright (c) $([System.DateTime]::Now.Year) John VonDrashek</Copyright>
+    <PackageProjectUrl>https://github.com/JohnVonDrashek/desales-dungeon-helper</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/JohnVonDrashek/desales-dungeon-helper</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
