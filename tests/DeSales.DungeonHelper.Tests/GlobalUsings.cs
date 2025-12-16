@@ -1,3 +1,3 @@
 global using FluentAssertions;
-global using NSubstitute;
+global using Microsoft.Xna.Framework;
 global using Xunit;

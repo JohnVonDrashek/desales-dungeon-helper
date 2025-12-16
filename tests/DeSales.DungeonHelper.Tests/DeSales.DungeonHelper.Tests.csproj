@@ -4,6 +4,7 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RootNamespace>DeSales.DungeonHelper.Tests</RootNamespace>
     <!-- Allow underscores in test method names -->
     <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
@@ -23,10 +24,11 @@
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="AutoFixture" />
     <PackageReference Include="AutoFixture.Xunit2" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\MyProject\MyProject.csproj" />
+    <ProjectReference Include="..\..\src\DeSales.DungeonHelper\DeSales.DungeonHelper.csproj" />
   </ItemGroup>
 
 </Project>

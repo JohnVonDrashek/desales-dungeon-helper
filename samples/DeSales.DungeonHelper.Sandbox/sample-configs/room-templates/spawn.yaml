@@ -1,0 +1,7 @@
+room_template:
+  type: spawn
+  required_features:
+    - single_entrance
+    - spawn_point: center
+  optional_features:
+    - safe_zone: true

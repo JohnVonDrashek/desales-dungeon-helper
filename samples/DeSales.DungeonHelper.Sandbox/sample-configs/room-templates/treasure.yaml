@@ -1,0 +1,6 @@
+room_template:
+  type: treasure
+  required_features:
+    - loot_point: center
+  optional_features:
+    - single_entrance: true

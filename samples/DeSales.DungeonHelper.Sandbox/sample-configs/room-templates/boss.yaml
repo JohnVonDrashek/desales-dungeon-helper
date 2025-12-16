@@ -1,0 +1,7 @@
+room_template:
+  type: boss
+  required_features:
+    - boss_spawn: center
+    - min_entrances: 1
+    - max_entrances: 2
+  shape: rectangular

@@ -1,0 +1,12 @@
+dungeon:
+  name: simple_dungeon
+  seed: 12345
+  width: 30
+  height: 30
+
+rooms:
+  count: 5-8
+
+corridors:
+  style: straight
+  width: 1

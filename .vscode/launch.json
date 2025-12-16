@@ -1,0 +1,41 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Sandbox",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build-sandbox",
+            "program": "${workspaceFolder}/samples/DeSales.DungeonHelper.Sandbox/bin/Debug/net10.0/DeSales.DungeonHelper.Sandbox.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/samples/DeSales.DungeonHelper.Sandbox/bin/Debug/net10.0",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Debug Sandbox",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build-sandbox",
+            "program": "${workspaceFolder}/samples/DeSales.DungeonHelper.Sandbox/bin/Debug/net10.0/DeSales.DungeonHelper.Sandbox.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/samples/DeSales.DungeonHelper.Sandbox/bin/Debug/net10.0",
+            "console": "integratedTerminal",
+            "stopAtEntry": true
+        },
+        {
+            "name": "Run Tests",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "dotnet",
+            "args": [
+                "test",
+                "${workspaceFolder}/DeSales.DungeonHelper.sln",
+                "--no-build"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        }
+    ]
+}

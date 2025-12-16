@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>DeSales.DungeonHelper</PackageId>
+    <Description>An intuitive dungeon generation library for MonoGame. Define dungeons in human-readable YAML, generate with deterministic seeds, and export to Tiled-compatible .tmx files.</Description>
+    <PackageTags>monogame;dungeon;procedural-generation;tiled;game-development;roguelike</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <RootNamespace>DeSales.DungeonHelper</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" />
+  </ItemGroup>
+
+</Project>

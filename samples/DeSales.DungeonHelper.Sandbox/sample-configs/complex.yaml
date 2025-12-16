@@ -1,0 +1,34 @@
+dungeon:
+  name: crypt_level_1
+  seed: 422
+  width: 50
+  height: 50
+
+rooms:
+  count: 8-12
+  types:
+    spawn:
+      count: 1
+      size: 7x7 to 10x10
+    boss:
+      count: 1
+      size: 15x15 to 20x20
+      placement: far_from_spawn
+    treasure:
+      count: 1-2
+      size: 5x5 to 8x8
+      placement: near_center
+    standard:
+      count: rest
+      size: 5x5 to 12x12
+
+corridors:
+  style: winding
+  width: 1
+
+tiles:
+  floor: 1
+  wall: 2
+  door: 3
+  spawn_point: 4
+  boss_spawn: 5
