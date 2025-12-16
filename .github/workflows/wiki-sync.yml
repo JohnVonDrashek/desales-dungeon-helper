@@ -4,15 +4,13 @@ on:
   push:
     branches: [main]
     paths:
-      - 'docs/**'
+      - 'docs/wiki/**'
   workflow_dispatch:
 
 jobs:
   sync-wiki:
     name: Sync Docs to Wiki
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout repository
@@ -21,8 +19,8 @@ jobs:
       - name: Sync to Wiki
         uses: Andrew-Chen-Wang/github-wiki-action@v4
         with:
-          path: docs
-          token: ${{ secrets.GITHUB_TOKEN }}
+          path: docs/wiki
+          token: ${{ secrets.WIKI_PUSH_TOKEN }}
 
   generate-api-docs:
     name: Generate API Documentation
