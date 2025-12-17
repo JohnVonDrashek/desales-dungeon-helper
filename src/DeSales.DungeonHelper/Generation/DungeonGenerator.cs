@@ -38,6 +38,14 @@ public class DungeonGenerator
         var roomsGroup = map.AddObjectGroup("Rooms");
         var spawnsGroup = map.AddObjectGroup("Spawns");
 
+        // Fill entire map with walls (for exterior: walls mode, this creates the classic dungeon look)
+        // For exterior: void mode, we'll clean up later
+        var fillWithWalls = !config.Dungeon.Exterior.Equals("void", StringComparison.OrdinalIgnoreCase);
+        if (fillWithWalls)
+        {
+            FillWithWalls(tileLayer, tiles);
+        }
+
         // Generate rooms
         var rooms = GenerateRooms(config, random, map.Width, map.Height);
 
@@ -449,7 +457,7 @@ public class DungeonGenerator
             // Place door on wall
             layer[x, y] = tiles.Door;
         }
-        else if (currentTile == 0) // Empty tile - place floor
+        else if (currentTile == 0 || currentTile == tiles.Wall) // Empty or wall tile - carve floor
         {
             layer[x, y] = tiles.Floor;
         }
@@ -472,6 +480,17 @@ public class DungeonGenerator
         var onBottomWall = y == room.Y + room.Height - 1 && x > room.X && x < room.X + room.Width - 1;
 
         return onLeftWall || onRightWall || onTopWall || onBottomWall;
+    }
+
+    private static void FillWithWalls(TmxTileLayer layer, TilesConfig tiles)
+    {
+        for (var y = 0; y < layer.Height; y++)
+        {
+            for (var x = 0; x < layer.Width; x++)
+            {
+                layer[x, y] = tiles.Wall;
+            }
+        }
     }
 
     private static void RenderRoom(TmxTileLayer layer, GeneratedRoom room, TilesConfig tiles)

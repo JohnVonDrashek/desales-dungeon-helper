@@ -9,7 +9,10 @@ Console.WriteLine();
 Console.WriteLine("Test 1: YAML Configuration Parsing");
 Console.WriteLine("-----------------------------------");
 
-var configPath = Path.Combine(AppContext.BaseDirectory, "sample-configs", "complex.yaml");
+var configFileName = args.Length > 0 ? args[0] : "complex.yaml";
+var configPath = Path.IsPathRooted(configFileName)
+    ? configFileName
+    : Path.Combine(AppContext.BaseDirectory, "sample-configs", configFileName);
 if (!File.Exists(configPath))
 {
     Console.WriteLine($"Config file not found: {configPath}");
@@ -23,6 +26,7 @@ Console.WriteLine($"  Seed: {config.Dungeon.Seed}");
 Console.WriteLine($"  Room count: {config.Rooms.Count.Min}-{config.Rooms.Count.Max}");
 Console.WriteLine($"  Room types: {string.Join(", ", config.Rooms.Types.Keys)}");
 Console.WriteLine($"  Corridor style: {config.Corridors.Style}");
+Console.WriteLine($"  Corridor width: {config.Corridors.Width}");
 Console.WriteLine();
 
 // Test 2: Generate dungeon from config

@@ -1,0 +1,27 @@
+dungeon:
+  name: wide_corridor_test
+  seed: 12345
+  width: 60
+  height: 45
+
+rooms:
+  count: 5-8
+  types:
+    spawn:
+      count: 1
+      size: 8x8 to 10x10
+    boss:
+      count: 1
+      size: 12x12 to 15x15
+    standard:
+      count: rest
+      size: 8x8 to 12x12
+
+corridors:
+  style: winding
+  width: 3
+
+tiles:
+  floor: 1
+  wall: 2
+  door: 3

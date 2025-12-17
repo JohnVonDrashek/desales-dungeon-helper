@@ -1,0 +1,28 @@
+dungeon:
+  name: void_exterior_test
+  seed: 12345
+  width: 40
+  height: 30
+  exterior: void
+
+rooms:
+  count: 3-5
+  types:
+    spawn:
+      count: 1
+      size: 6x6 to 8x8
+    boss:
+      count: 1
+      size: 10x10 to 12x12
+    standard:
+      count: rest
+      size: 5x5 to 8x8
+
+corridors:
+  style: winding
+  width: 2
+
+tiles:
+  floor: 1
+  wall: 2
+  door: 3

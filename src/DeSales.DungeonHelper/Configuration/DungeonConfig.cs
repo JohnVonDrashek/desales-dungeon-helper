@@ -192,6 +192,12 @@ public class DungeonSettings
     /// Gets or sets the dungeon height in tiles.
     /// </summary>
     public int Height { get; set; } = 50;
+
+    /// <summary>
+    /// Gets or sets the exterior style. "walls" (default) fills the entire map with walls,
+    /// creating a classic dungeon look. "void" leaves empty space outside rooms/corridors.
+    /// </summary>
+    public string Exterior { get; set; } = "walls";
 }
 
 /// <summary>

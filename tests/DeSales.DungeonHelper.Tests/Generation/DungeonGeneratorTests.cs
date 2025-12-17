@@ -648,4 +648,126 @@ public class DungeonGeneratorTests
         }
         return doorCount;
     }
+
+    [Fact]
+    public void Generate_ExteriorWalls_FillsMapWithWalls()
+    {
+        // Arrange - default exterior is "walls"
+        var config = CreateSimpleConfig();
+        config.Dungeon.Seed = 42;
+
+        // Act
+        var map = DungeonGenerator.Generate(config);
+
+        // Assert - count wall tiles outside rooms and corridors
+        var tileLayer = map.GetTileLayer("Tiles")!;
+        var wallCount = 0;
+        for (var y = 0; y < map.Height; y++)
+        {
+            for (var x = 0; x < map.Width; x++)
+            {
+                if (tileLayer[x, y] == 2) // Wall tile
+                {
+                    wallCount++;
+                }
+            }
+        }
+
+        // With exterior: walls, most of the map should be walls
+        var totalTiles = map.Width * map.Height;
+        wallCount.Should().BeGreaterThan(totalTiles / 2,
+            "with exterior: walls (default), most of the map should be walls");
+    }
+
+    [Fact]
+    public void Generate_ExteriorVoid_LeavesEmptySpace()
+    {
+        // Arrange
+        var config = CreateSimpleConfig();
+        config.Dungeon.Seed = 42;
+        config.Dungeon.Exterior = "void";
+
+        // Act
+        var map = DungeonGenerator.Generate(config);
+
+        // Assert - count empty tiles outside rooms and corridors
+        var tileLayer = map.GetTileLayer("Tiles")!;
+        var emptyCount = 0;
+        for (var y = 0; y < map.Height; y++)
+        {
+            for (var x = 0; x < map.Width; x++)
+            {
+                if (tileLayer[x, y] == 0) // Empty tile
+                {
+                    emptyCount++;
+                }
+            }
+        }
+
+        // With exterior: void, there should be many empty tiles
+        var totalTiles = map.Width * map.Height;
+        emptyCount.Should().BeGreaterThan(totalTiles / 2,
+            "with exterior: void, most of the map should be empty (tile 0)");
+    }
+
+    [Fact]
+    public void Generate_ExteriorWalls_CorridorsHaveWallsSurrounding()
+    {
+        // Arrange
+        var config = CreateSimpleConfig();
+        config.Dungeon.Seed = 42;
+        config.Dungeon.Exterior = "walls"; // explicit
+
+        // Act
+        var map = DungeonGenerator.Generate(config);
+
+        // Assert - for each corridor floor tile, at least some neighbors should be walls
+        var tileLayer = map.GetTileLayer("Tiles")!;
+        var roomsGroup = map.GetObjectGroup("Rooms")!;
+
+        var corridorTilesWithWallNeighbors = 0;
+        var totalCorridorTiles = 0;
+
+        for (var y = 1; y < map.Height - 1; y++)
+        {
+            for (var x = 1; x < map.Width - 1; x++)
+            {
+                if (tileLayer[x, y] == 1) // Floor tile
+                {
+                    var inRoom = roomsGroup.Objects.Any(room =>
+                    {
+                        var rx = (int)(room.X / 16);
+                        var ry = (int)(room.Y / 16);
+                        var rw = (int)(room.Width!.Value / 16);
+                        var rh = (int)(room.Height!.Value / 16);
+                        return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
+                    });
+
+                    if (!inRoom)
+                    {
+                        totalCorridorTiles++;
+                        // Check if any neighbor is a wall
+                        var hasWallNeighbor =
+                            tileLayer[x - 1, y] == 2 ||
+                            tileLayer[x + 1, y] == 2 ||
+                            tileLayer[x, y - 1] == 2 ||
+                            tileLayer[x, y + 1] == 2;
+
+                        if (hasWallNeighbor)
+                        {
+                            corridorTilesWithWallNeighbors++;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Most corridor tiles should have wall neighbors when exterior is walls
+        if (totalCorridorTiles > 0)
+        {
+            var ratio = (double)corridorTilesWithWallNeighbors / totalCorridorTiles;
+            ratio.Should().BeGreaterThan(0.5,
+                "corridor tiles should have wall neighbors when exterior is 'walls'");
+        }
+    }
 }
