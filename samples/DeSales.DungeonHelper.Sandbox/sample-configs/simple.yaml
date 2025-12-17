@@ -5,8 +5,16 @@ dungeon:
   height: 30
 
 rooms:
-  count: 5-8
+  count: 3-5
+  types:
+    spawn:
+      count: 1
+      size: 8x8
+    standard:
+      count: rest
+      size: 8x8
 
+# Note: With Isaac-style generation, rooms are directly adjacent.
+# Corridor style/width are ignored - only door width matters.
 corridors:
-  style: straight
-  width: 1
+  doors: 1

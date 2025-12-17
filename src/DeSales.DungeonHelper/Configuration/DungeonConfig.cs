@@ -272,23 +272,27 @@ public class RoomTypeConfig
 }
 
 /// <summary>
-/// Corridor configuration.
+/// Corridor and door configuration.
+/// Note: With Isaac-style grid generation, rooms are directly adjacent (no separate corridors).
+/// The Style and Width properties are kept for backwards compatibility but are ignored.
+/// Only door width affects generation.
 /// </summary>
 public class CorridorsConfig
 {
     /// <summary>
-    /// Gets or sets the corridor style (winding, straight, organic).
+    /// Gets or sets the corridor style. Ignored with Isaac-style generation.
     /// </summary>
     public string Style { get; set; } = "winding";
 
     /// <summary>
-    /// Gets or sets the corridor width in tiles.
+    /// Gets or sets the corridor width in tiles. Ignored with Isaac-style generation
+    /// (rooms are directly adjacent). Used as default door width if Doors is not specified.
     /// </summary>
     public int Width { get; set; } = 1;
 
     /// <summary>
-    /// Gets or sets the door width in tiles. If not specified, defaults to corridor width.
-    /// Useful when player/entity sprites are larger than a single tile.
+    /// Gets or sets the door width in tiles. If not specified, defaults to Width.
+    /// Controls the size of openings between adjacent rooms.
     /// </summary>
     public int? Doors { get; set; }
 

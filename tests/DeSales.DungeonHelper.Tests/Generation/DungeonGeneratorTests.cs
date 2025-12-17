@@ -239,45 +239,32 @@ public class DungeonGeneratorTests
     }
 
     [Fact]
-    public void Generate_ConnectsRoomsWithCorridors()
+    public void Generate_RoomsAreDirectlyAdjacent()
     {
-        // Arrange
+        // Arrange - Isaac-style generation creates adjacent rooms (no separate corridors)
         var config = CreateSimpleConfig();
         config.Dungeon.Seed = 42;
 
         // Act
         var map = DungeonGenerator.Generate(config);
 
-        // Assert - verify that there are floor tiles outside of rooms (corridors)
+        // Assert - rooms should be adjacent (sharing walls with doors)
         var tileLayer = map.GetTileLayer("Tiles")!;
-        var roomsGroup = map.GetObjectGroup("Rooms")!;
+        var doorCount = 0;
 
-        // Count floor tiles that are NOT inside any room
-        var corridorFloorCount = 0;
         for (var y = 0; y < map.Height; y++)
         {
             for (var x = 0; x < map.Width; x++)
             {
-                if (tileLayer[x, y] == 1) // Floor tile
+                if (tileLayer[x, y] == 3) // Door tile
                 {
-                    var inRoom = roomsGroup.Objects.Any(room =>
-                    {
-                        var rx = (int)(room.X / 16);
-                        var ry = (int)(room.Y / 16);
-                        var rw = (int)(room.Width!.Value / 16);
-                        var rh = (int)(room.Height!.Value / 16);
-                        return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
-                    });
-
-                    if (!inRoom)
-                    {
-                        corridorFloorCount++;
-                    }
+                    doorCount++;
                 }
             }
         }
 
-        corridorFloorCount.Should().BeGreaterThan(0, "there should be corridor floor tiles connecting rooms");
+        // With Isaac-style, rooms are connected via doors on shared walls
+        doorCount.Should().BeGreaterThan(0, "adjacent rooms should be connected via door tiles");
     }
 
     [Fact]
@@ -524,9 +511,9 @@ public class DungeonGeneratorTests
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
-    public void Generate_CorridorWidthIsRespected(int corridorWidth)
+    public void Generate_DoorWidthIsRespected(int doorWidth)
     {
-        // Arrange
+        // Arrange - Isaac-style uses door width for room connections
         var config = new DungeonConfig
         {
             Dungeon = new DungeonSettings
@@ -548,7 +535,8 @@ public class DungeonGeneratorTests
             Corridors = new CorridorsConfig
             {
                 Style = "winding",
-                Width = corridorWidth
+                Width = 1,
+                Doors = doorWidth
             },
             Tiles = new TilesConfig
             {
@@ -561,51 +549,35 @@ public class DungeonGeneratorTests
         // Act
         var map = DungeonGenerator.Generate(config);
 
-        // Assert - count corridor floor tiles outside of rooms
+        // Assert - count door tiles
         var tileLayer = map.GetTileLayer("Tiles")!;
-        var roomsGroup = map.GetObjectGroup("Rooms")!;
+        var doorTiles = new List<(int x, int y)>();
 
-        var corridorFloorTiles = new List<(int x, int y)>();
         for (var y = 0; y < map.Height; y++)
         {
             for (var x = 0; x < map.Width; x++)
             {
-                if (tileLayer[x, y] == 1) // Floor tile
+                if (tileLayer[x, y] == 3) // Door tile
                 {
-                    var inRoom = roomsGroup.Objects.Any(room =>
-                    {
-                        var rx = (int)(room.X / 16);
-                        var ry = (int)(room.Y / 16);
-                        var rw = (int)(room.Width!.Value / 16);
-                        var rh = (int)(room.Height!.Value / 16);
-                        return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
-                    });
-
-                    if (!inRoom)
-                    {
-                        corridorFloorTiles.Add((x, y));
-                    }
+                    doorTiles.Add((x, y));
                 }
             }
         }
 
-        // For a corridor of width N, we expect roughly N times as many floor tiles
-        // compared to width 1 (not exact due to corridor turns and overlaps)
-        corridorFloorTiles.Should().NotBeEmpty("corridors should have floor tiles");
+        doorTiles.Should().NotBeEmpty("there should be door tiles between rooms");
 
-        // Verify corridor width by checking that parallel tiles exist
-        // For each corridor tile, check if there are adjacent tiles in perpendicular direction
-        if (corridorWidth > 1)
+        // Wider door widths should produce more door tiles
+        if (doorWidth > 1)
         {
-            var tilesWithNeighbors = corridorFloorTiles.Count(tile =>
-                corridorFloorTiles.Contains((tile.x - 1, tile.y)) ||
-                corridorFloorTiles.Contains((tile.x + 1, tile.y)) ||
-                corridorFloorTiles.Contains((tile.x, tile.y - 1)) ||
-                corridorFloorTiles.Contains((tile.x, tile.y + 1)));
+            // Count door tiles that are adjacent to other door tiles
+            var adjacentDoors = doorTiles.Count(tile =>
+                doorTiles.Contains((tile.x - 1, tile.y)) ||
+                doorTiles.Contains((tile.x + 1, tile.y)) ||
+                doorTiles.Contains((tile.x, tile.y - 1)) ||
+                doorTiles.Contains((tile.x, tile.y + 1)));
 
-            // Most corridor tiles should have neighbors (wider corridors have more connectivity)
-            tilesWithNeighbors.Should().BeGreaterThan(corridorFloorTiles.Count / 2,
-                $"wider corridors (width={corridorWidth}) should have more connected floor tiles");
+            adjacentDoors.Should().BeGreaterThan(0,
+                $"wider doors (width={doorWidth}) should have adjacent door tiles");
         }
     }
 
@@ -654,6 +626,76 @@ public class DungeonGeneratorTests
         // Assert - wider doors should have more door tiles even with narrow corridors
         doorsWide.Should().BeGreaterThan(doorsDefault,
             "door width 3 should have more door tiles than default door width 1");
+    }
+
+    [Fact]
+    public void Generate_AllRoomEntriesHaveDoors()
+    {
+        // Arrange - config matching the problematic wide-doors.yaml
+        var config = new DungeonConfig
+        {
+            Dungeon = new DungeonSettings
+            {
+                Name = "door_test",
+                Width = 50,
+                Height = 40,
+                Seed = 12345
+            },
+            Rooms = new RoomsConfig
+            {
+                CountString = "4-6",
+                Types = new Dictionary<string, RoomTypeConfig>
+                {
+                    ["spawn"] = new RoomTypeConfig { Count = "1", SizeString = "8x8 to 10x10" },
+                    ["boss"] = new RoomTypeConfig { Count = "1", SizeString = "12x12 to 14x14" },
+                    ["standard"] = new RoomTypeConfig { Count = "rest", SizeString = "6x6 to 10x10" }
+                }
+            },
+            Corridors = new CorridorsConfig { Style = "winding", Width = 1, Doors = 3 },
+            Tiles = new TilesConfig { Floor = 1, Wall = 2, Door = 3 }
+        };
+
+        // Act
+        var map = DungeonGenerator.Generate(config);
+        var tileLayer = map.GetTileLayer("Tiles")!;
+        var roomsGroup = map.GetObjectGroup("Rooms")!;
+
+        // Assert - every room should have at least one door on its perimeter
+        foreach (var room in roomsGroup.Objects)
+        {
+            var rx = (int)(room.X / 16);
+            var ry = (int)(room.Y / 16);
+            var rw = (int)(room.Width!.Value / 16);
+            var rh = (int)(room.Height!.Value / 16);
+
+            // Check all wall positions for at least one door
+            var hasDoor = false;
+
+            // Top and bottom walls
+            for (var x = rx + 1; x < rx + rw - 1; x++)
+            {
+                if (tileLayer[x, ry] == 3 || tileLayer[x, ry + rh - 1] == 3)
+                {
+                    hasDoor = true;
+                    break;
+                }
+            }
+
+            // Left and right walls
+            if (!hasDoor)
+            {
+                for (var y = ry + 1; y < ry + rh - 1; y++)
+                {
+                    if (tileLayer[rx, y] == 3 || tileLayer[rx + rw - 1, y] == 3)
+                    {
+                        hasDoor = true;
+                        break;
+                    }
+                }
+            }
+
+            hasDoor.Should().BeTrue($"Room {room.Name} should have at least one door");
+        }
     }
 
     [Fact]
@@ -759,7 +801,7 @@ public class DungeonGeneratorTests
     }
 
     [Fact]
-    public void Generate_ExteriorVoid_CorridorsStillHaveWalls()
+    public void Generate_ExteriorVoid_RoomsStillHaveWalls()
     {
         // Arrange
         var config = CreateSimpleConfig();
@@ -769,12 +811,10 @@ public class DungeonGeneratorTests
         // Act
         var map = DungeonGenerator.Generate(config);
 
-        // Assert - for each corridor floor tile, at least some neighbors should be walls
+        // Assert - floor tiles should have wall neighbors (rooms have walls)
         var tileLayer = map.GetTileLayer("Tiles")!;
-        var roomsGroup = map.GetObjectGroup("Rooms")!;
-
-        var corridorTilesWithWallNeighbors = 0;
-        var totalCorridorTiles = 0;
+        var floorTilesWithWallNeighbors = 0;
+        var totalFloorTiles = 0;
 
         for (var y = 1; y < map.Height - 1; y++)
         {
@@ -782,45 +822,31 @@ public class DungeonGeneratorTests
             {
                 if (tileLayer[x, y] == 1) // Floor tile
                 {
-                    var inRoom = roomsGroup.Objects.Any(room =>
-                    {
-                        var rx = (int)(room.X / 16);
-                        var ry = (int)(room.Y / 16);
-                        var rw = (int)(room.Width!.Value / 16);
-                        var rh = (int)(room.Height!.Value / 16);
-                        return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
-                    });
+                    totalFloorTiles++;
+                    // Check if any neighbor is a wall
+                    var hasWallNeighbor =
+                        tileLayer[x - 1, y] == 2 ||
+                        tileLayer[x + 1, y] == 2 ||
+                        tileLayer[x, y - 1] == 2 ||
+                        tileLayer[x, y + 1] == 2;
 
-                    if (!inRoom)
+                    if (hasWallNeighbor)
                     {
-                        totalCorridorTiles++;
-                        // Check if any neighbor is a wall
-                        var hasWallNeighbor =
-                            tileLayer[x - 1, y] == 2 ||
-                            tileLayer[x + 1, y] == 2 ||
-                            tileLayer[x, y - 1] == 2 ||
-                            tileLayer[x, y + 1] == 2;
-
-                        if (hasWallNeighbor)
-                        {
-                            corridorTilesWithWallNeighbors++;
-                        }
+                        floorTilesWithWallNeighbors++;
                     }
                 }
             }
         }
 
-        // Even in void mode, corridor tiles should have wall neighbors
-        if (totalCorridorTiles > 0)
-        {
-            var ratio = (double)corridorTilesWithWallNeighbors / totalCorridorTiles;
-            ratio.Should().BeGreaterThan(0.5,
-                "corridor tiles should have wall neighbors even in 'void' exterior mode");
-        }
+        // In void mode, floors should still have wall neighbors (room walls)
+        totalFloorTiles.Should().BeGreaterThan(0, "there should be floor tiles");
+        var ratio = (double)floorTilesWithWallNeighbors / totalFloorTiles;
+        ratio.Should().BeGreaterThan(0.3,
+            "floor tiles should have wall neighbors even in 'void' exterior mode");
     }
 
     [Fact]
-    public void Generate_ExteriorWalls_CorridorsHaveWallsSurrounding()
+    public void Generate_ExteriorWalls_RoomsHaveWallsSurrounding()
     {
         // Arrange
         var config = CreateSimpleConfig();
@@ -830,12 +856,10 @@ public class DungeonGeneratorTests
         // Act
         var map = DungeonGenerator.Generate(config);
 
-        // Assert - for each corridor floor tile, at least some neighbors should be walls
+        // Assert - floor tiles should have wall neighbors (rooms have walls)
         var tileLayer = map.GetTileLayer("Tiles")!;
-        var roomsGroup = map.GetObjectGroup("Rooms")!;
-
-        var corridorTilesWithWallNeighbors = 0;
-        var totalCorridorTiles = 0;
+        var floorTilesWithWallNeighbors = 0;
+        var totalFloorTiles = 0;
 
         for (var y = 1; y < map.Height - 1; y++)
         {
@@ -843,40 +867,133 @@ public class DungeonGeneratorTests
             {
                 if (tileLayer[x, y] == 1) // Floor tile
                 {
-                    var inRoom = roomsGroup.Objects.Any(room =>
-                    {
-                        var rx = (int)(room.X / 16);
-                        var ry = (int)(room.Y / 16);
-                        var rw = (int)(room.Width!.Value / 16);
-                        var rh = (int)(room.Height!.Value / 16);
-                        return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
-                    });
+                    totalFloorTiles++;
+                    // Check if any neighbor is a wall
+                    var hasWallNeighbor =
+                        tileLayer[x - 1, y] == 2 ||
+                        tileLayer[x + 1, y] == 2 ||
+                        tileLayer[x, y - 1] == 2 ||
+                        tileLayer[x, y + 1] == 2;
 
-                    if (!inRoom)
+                    if (hasWallNeighbor)
                     {
-                        totalCorridorTiles++;
-                        // Check if any neighbor is a wall
-                        var hasWallNeighbor =
-                            tileLayer[x - 1, y] == 2 ||
-                            tileLayer[x + 1, y] == 2 ||
-                            tileLayer[x, y - 1] == 2 ||
-                            tileLayer[x, y + 1] == 2;
-
-                        if (hasWallNeighbor)
-                        {
-                            corridorTilesWithWallNeighbors++;
-                        }
+                        floorTilesWithWallNeighbors++;
                     }
                 }
             }
         }
 
-        // Most corridor tiles should have wall neighbors when exterior is walls
-        if (totalCorridorTiles > 0)
+        // Floor tiles should have wall neighbors (room walls)
+        totalFloorTiles.Should().BeGreaterThan(0, "there should be floor tiles");
+        var ratio = (double)floorTilesWithWallNeighbors / totalFloorTiles;
+        ratio.Should().BeGreaterThan(0.3,
+            "floor tiles should have wall neighbors when exterior is 'walls'");
+    }
+
+    [Fact]
+    public void Generate_DoorsAreOnlyConnectionBetweenRooms()
+    {
+        // Arrange - with Isaac-style, rooms are directly adjacent via doors
+        var config = new DungeonConfig
         {
-            var ratio = (double)corridorTilesWithWallNeighbors / totalCorridorTiles;
-            ratio.Should().BeGreaterThan(0.5,
-                "corridor tiles should have wall neighbors when exterior is 'walls'");
+            Dungeon = new DungeonSettings
+            {
+                Name = "door_test",
+                Width = 50,
+                Height = 40,
+                Seed = 12345
+            },
+            Rooms = new RoomsConfig
+            {
+                CountString = "4-6",
+                Types = new Dictionary<string, RoomTypeConfig>
+                {
+                    ["spawn"] = new RoomTypeConfig { Count = "1", SizeString = "8x8 to 10x10" },
+                    ["boss"] = new RoomTypeConfig { Count = "1", SizeString = "12x12 to 14x14" },
+                    ["standard"] = new RoomTypeConfig { Count = "rest", SizeString = "6x6 to 10x10" }
+                }
+            },
+            Corridors = new CorridorsConfig { Style = "winding", Width = 1, Doors = 2 },
+            Tiles = new TilesConfig { Floor = 1, Wall = 2, Door = 3 }
+        };
+
+        // Act
+        var map = DungeonGenerator.Generate(config);
+        var tileLayer = map.GetTileLayer("Tiles")!;
+        var spawnsGroup = map.GetObjectGroup("Spawns")!;
+
+        // Test 1: Flood fill WITH doors should reach all floors
+        var playerSpawn = spawnsGroup.Objects.First(o => o.Name == "PlayerSpawn");
+        var startX = (int)(playerSpawn.X / 16);
+        var startY = (int)(playerSpawn.Y / 16);
+
+        var visitedWithDoors = FloodFill(tileLayer, startX, startY, map.Width, map.Height, includeDoors: true);
+
+        // Count all floor tiles
+        var totalFloorTiles = 0;
+        for (var y = 0; y < map.Height; y++)
+        {
+            for (var x = 0; x < map.Width; x++)
+            {
+                if (tileLayer[x, y] == 1)
+                {
+                    totalFloorTiles++;
+                }
+            }
         }
+
+        // All floor tiles should be reachable when crossing doors
+        visitedWithDoors.Count(p => tileLayer[p.x, p.y] == 1).Should().Be(totalFloorTiles,
+            "all floor tiles should be reachable when crossing doors");
+
+        // Test 2: Flood fill WITHOUT doors should NOT reach all rooms
+        // (only the spawn room's floor tiles should be reachable)
+        var visitedWithoutDoors = FloodFill(tileLayer, startX, startY, map.Width, map.Height, includeDoors: false);
+
+        // Without crossing doors, we should only reach tiles in the spawn room
+        visitedWithoutDoors.Count.Should().BeLessThan(totalFloorTiles,
+            "without crossing doors, we should not reach all floor tiles");
+    }
+
+    private static HashSet<(int x, int y)> FloodFill(
+        DeSales.DungeonHelper.Tiled.TmxTileLayer layer,
+        int startX, int startY,
+        int width, int height,
+        bool includeDoors)
+    {
+        var visited = new HashSet<(int x, int y)>();
+        var queue = new Queue<(int x, int y)>();
+        queue.Enqueue((startX, startY));
+
+        while (queue.Count > 0)
+        {
+            var (x, y) = queue.Dequeue();
+            if (visited.Contains((x, y)))
+            {
+                continue;
+            }
+
+            if (x < 0 || x >= width || y < 0 || y >= height)
+            {
+                continue;
+            }
+
+            var tile = layer[x, y];
+            var isFloor = tile == 1;
+            var isDoor = tile == 3;
+
+            if (!isFloor && !(includeDoors && isDoor))
+            {
+                continue;
+            }
+
+            visited.Add((x, y));
+            queue.Enqueue((x - 1, y));
+            queue.Enqueue((x + 1, y));
+            queue.Enqueue((x, y - 1));
+            queue.Enqueue((x, y + 1));
+        }
+
+        return visited;
     }
 }
