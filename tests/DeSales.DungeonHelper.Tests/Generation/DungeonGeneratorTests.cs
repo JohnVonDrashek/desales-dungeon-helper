@@ -632,6 +632,54 @@ public class DungeonGeneratorTests
             "corridors with width 3 should have more door tiles than width 1");
     }
 
+    [Fact]
+    public void Generate_DoorWidthCanDifferFromCorridorWidth()
+    {
+        // Arrange - corridor width 1, door width 3 (for larger player sprites)
+        var config = CreateSimpleConfig();
+        config.Corridors = new CorridorsConfig { Style = "winding", Width = 1, Doors = 3 };
+
+        // Compare to corridor width 1 with default door width (1)
+        var configDefault = CreateSimpleConfig();
+        configDefault.Corridors = new CorridorsConfig { Style = "winding", Width = 1 };
+
+        // Act
+        var mapWithWideDoors = DungeonGenerator.Generate(config);
+        var mapWithDefaultDoors = DungeonGenerator.Generate(configDefault);
+
+        // Count doors in each map
+        var doorsWide = CountDoorsInMap(mapWithWideDoors);
+        var doorsDefault = CountDoorsInMap(mapWithDefaultDoors);
+
+        // Assert - wider doors should have more door tiles even with narrow corridors
+        doorsWide.Should().BeGreaterThan(doorsDefault,
+            "door width 3 should have more door tiles than default door width 1");
+    }
+
+    [Fact]
+    public void Generate_DoorWidthDefaultsToCorridorWidth()
+    {
+        // Arrange - corridor width 2, no door width specified
+        var config = CreateSimpleConfig();
+        config.Corridors = new CorridorsConfig { Style = "winding", Width = 2 };
+
+        // Explicitly set door width to match corridor width
+        var configExplicit = CreateSimpleConfig();
+        configExplicit.Corridors = new CorridorsConfig { Style = "winding", Width = 2, Doors = 2 };
+
+        // Act
+        var mapImplicit = DungeonGenerator.Generate(config);
+        var mapExplicit = DungeonGenerator.Generate(configExplicit);
+
+        // Count doors in each map
+        var doorsImplicit = CountDoorsInMap(mapImplicit);
+        var doorsExplicit = CountDoorsInMap(mapExplicit);
+
+        // Assert - should be equal since default door width equals corridor width
+        doorsImplicit.Should().Be(doorsExplicit,
+            "implicit door width should equal explicit door width when both match corridor width");
+    }
+
     private static int CountDoorsInMap(DeSales.DungeonHelper.Tiled.TmxMap map)
     {
         var tileLayer = map.GetTileLayer("Tiles")!;

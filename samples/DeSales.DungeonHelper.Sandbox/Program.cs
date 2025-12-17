@@ -27,6 +27,7 @@ Console.WriteLine($"  Room count: {config.Rooms.Count.Min}-{config.Rooms.Count.M
 Console.WriteLine($"  Room types: {string.Join(", ", config.Rooms.Types.Keys)}");
 Console.WriteLine($"  Corridor style: {config.Corridors.Style}");
 Console.WriteLine($"  Corridor width: {config.Corridors.Width}");
+Console.WriteLine($"  Door width: {config.Corridors.EffectiveDoorWidth}");
 Console.WriteLine();
 
 // Test 2: Generate dungeon from config

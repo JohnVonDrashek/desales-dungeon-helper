@@ -285,6 +285,17 @@ public class CorridorsConfig
     /// Gets or sets the corridor width in tiles.
     /// </summary>
     public int Width { get; set; } = 1;
+
+    /// <summary>
+    /// Gets or sets the door width in tiles. If not specified, defaults to corridor width.
+    /// Useful when player/entity sprites are larger than a single tile.
+    /// </summary>
+    public int? Doors { get; set; }
+
+    /// <summary>
+    /// Gets the effective door width (uses Doors if specified, otherwise Width).
+    /// </summary>
+    public int EffectiveDoorWidth => Doors ?? Width;
 }
 
 /// <summary>

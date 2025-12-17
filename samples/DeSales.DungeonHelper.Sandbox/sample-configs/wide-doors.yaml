@@ -1,0 +1,28 @@
+dungeon:
+  name: wide_doors_test
+  seed: 12345
+  width: 50
+  height: 40
+
+rooms:
+  count: 4-6
+  types:
+    spawn:
+      count: 1
+      size: 8x8 to 10x10
+    boss:
+      count: 1
+      size: 12x12 to 14x14
+    standard:
+      count: rest
+      size: 6x6 to 10x10
+
+corridors:
+  style: winding
+  width: 1
+  doors: 3
+
+tiles:
+  floor: 1
+  wall: 2
+  door: 3
