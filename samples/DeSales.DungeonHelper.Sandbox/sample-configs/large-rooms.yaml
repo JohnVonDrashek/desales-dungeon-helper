@@ -1,0 +1,26 @@
+dungeon:
+  name: large_rooms_dungeon
+  seed: 42
+  width: 70
+  height: 56
+  cell_size: 14  # Larger rooms (14x14 tiles each)
+
+rooms:
+  count: 6-8
+  types:
+    spawn:
+      count: 1
+    boss:
+      count: 1
+    treasure:
+      count: 1-2
+    standard:
+      count: rest
+
+corridors:
+  doors: 2  # Wider doors for larger rooms
+
+tiles:
+  floor: 1
+  wall: 2
+  door: 3

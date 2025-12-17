@@ -9,7 +9,7 @@ namespace DeSales.DungeonHelper.Generation;
 public class DungeonGenerator
 {
     private const int DefaultTileSize = 16;
-    private const int DefaultCellSize = 10; // Each grid cell is 10x10 tiles
+    private const int DefaultCellSize = 10; // Default: each grid cell is 10x10 tiles
 
     private static readonly (int dx, int dy)[] _directions = [(0, -1), (1, 0), (0, 1), (-1, 0)];
 
@@ -26,8 +26,8 @@ public class DungeonGenerator
         var random = CreateRandom(config.Dungeon.Seed);
         var tiles = config.Tiles ?? new TilesConfig();
 
-        // Calculate grid dimensions from map size
-        int cellSize = DefaultCellSize;
+        // Calculate grid dimensions from map size (use configured cell size or default)
+        int cellSize = config.Dungeon.CellSize > 0 ? config.Dungeon.CellSize : DefaultCellSize;
         int gridWidth = config.Dungeon.Width / cellSize;
         int gridHeight = config.Dungeon.Height / cellSize;
 

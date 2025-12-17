@@ -198,6 +198,14 @@ public class DungeonSettings
     /// creating a classic dungeon look. "void" leaves empty space outside rooms/corridors.
     /// </summary>
     public string Exterior { get; set; } = "walls";
+
+    /// <summary>
+    /// Gets or sets the grid cell size in tiles. Each room occupies one cell.
+    /// Default is 10 (10x10 tiles per room). Smaller values create compact dungeons,
+    /// larger values create more spacious rooms.
+    /// </summary>
+    [YamlMember(Alias = "cell_size")]
+    public int CellSize { get; set; } = 10;
 }
 
 /// <summary>

@@ -1,0 +1,26 @@
+dungeon:
+  name: compact_dungeon
+  seed: 42
+  width: 48
+  height: 48
+  cell_size: 8  # Compact rooms (8x8 tiles each)
+
+rooms:
+  count: 8-12
+  types:
+    spawn:
+      count: 1
+    boss:
+      count: 1
+    treasure:
+      count: 1-2
+    standard:
+      count: rest
+
+corridors:
+  doors: 1
+
+tiles:
+  floor: 1
+  wall: 2
+  door: 3
