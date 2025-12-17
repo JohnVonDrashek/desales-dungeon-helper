@@ -1,0 +1,43 @@
+# Example config using TMX room templates
+# Templates are loaded from the templates_dir and matched to room types
+
+dungeon:
+  name: templated_dungeon
+  width: 60
+  height: 60
+  cell_size: 10
+  exterior: void
+
+rooms:
+  count: 8-12
+  templates_dir: "./room-templates"  # Directory containing TMX room templates
+  types:
+    spawn:
+      count: 1
+      source: template  # Use templates only
+      template_files:
+        - "spawn_altar.tmx"
+    boss:
+      count: 1
+      source: template
+      template_files:
+        - "boss_arena.tmx"
+    treasure:
+      count: 1-2
+      source: mixed     # Mix templates and procedural
+      weight_template: 0.7  # 70% chance to use template
+      template_files:
+        - "treasure_vault.tmx"
+    standard:
+      count: rest
+      source: procedural  # Default - generate procedurally
+
+corridors:
+  doors: 1
+
+tiles:
+  floor: 1
+  wall: 2
+  door: 3
+  spawn_point: 4
+  boss_spawn: 5

@@ -1,17 +1,24 @@
 using DeSales.DungeonHelper.Configuration;
+using DeSales.DungeonHelper.Rooms;
 using DeSales.DungeonHelper.Tiled;
 
 namespace DeSales.DungeonHelper.Generation;
 
 /// <summary>
 /// Generates dungeons using Isaac-style grid growth algorithm.
+/// Now uses the two-stage pipeline: layout generation → room assembly.
 /// </summary>
 public class DungeonGenerator
 {
-    private const int DefaultTileSize = 16;
-    private const int DefaultCellSize = 10; // Default: each grid cell is 10x10 tiles
+    private const int DefaultCellSize = 10;
 
-    private static readonly (int dx, int dy)[] _directions = [(0, -1), (1, 0), (0, 1), (-1, 0)];
+    private static readonly (int dx, int dy, Edge edge)[] _directions =
+    [
+        (0, -1, Edge.North),
+        (1, 0, Edge.East),
+        (0, 1, Edge.South),
+        (-1, 0, Edge.West)
+    ];
 
     /// <summary>
     /// Generates a dungeon based on the provided configuration.
@@ -26,60 +33,104 @@ public class DungeonGenerator
         var random = CreateRandom(config.Dungeon.Seed);
         var tiles = config.Tiles ?? new TilesConfig();
 
-        // Calculate grid dimensions from map size (use configured cell size or default)
         int cellSize = config.Dungeon.CellSize > 0 ? config.Dungeon.CellSize : DefaultCellSize;
-        int gridWidth = config.Dungeon.Width / cellSize;
-        int gridHeight = config.Dungeon.Height / cellSize;
+        int gridWidth = Math.Max(3, config.Dungeon.Width / cellSize);
+        int gridHeight = Math.Max(3, config.Dungeon.Height / cellSize);
 
-        // Ensure minimum grid size
-        gridWidth = Math.Max(3, gridWidth);
-        gridHeight = Math.Max(3, gridHeight);
-
-        var map = new TmxMap(
-            gridWidth * cellSize,
-            gridHeight * cellSize,
-            DefaultTileSize,
-            DefaultTileSize);
-
-        var tileLayer = map.AddTileLayer("Tiles");
-        var roomsGroup = map.AddObjectGroup("Rooms");
-        var spawnsGroup = map.AddObjectGroup("Spawns");
-
-        // For void exterior mode, we don't pre-fill with walls
-        var fillWithWalls = !config.Dungeon.Exterior.Equals("void", StringComparison.OrdinalIgnoreCase);
-        if (fillWithWalls)
-        {
-            FillWithWalls(tileLayer, tiles);
-        }
-
-        // Generate Isaac-style room layout
+        // Stage 1: Generate abstract layout
+        var grid = new LayoutCell?[gridWidth, gridHeight];
         int targetRooms = random.Next(config.Rooms.Count.Min, config.Rooms.Count.Max + 1);
-        var grid = new GridCell?[gridWidth, gridHeight];
         var cells = GenerateIsaacLayout(grid, gridWidth, gridHeight, targetRooms, random);
 
         // Assign room types
         AssignRoomTypes(cells, config.Rooms, random);
 
-        // Render cells to tiles
-        foreach (var cell in cells)
+        // Stage 2: Build room sources from config
+        var roomSources = BuildRoomSources(config, cellSize, tiles);
+
+        // Stage 3: Convert to placed rooms with blueprints
+        var placedRooms = ConvertToPlacedRooms(cells, roomSources, random);
+
+        // Stage 4: Assemble into final map
+        var assembler = new DungeonAssembler(tiles, cellSize, config.Corridors.EffectiveDoorWidth);
+        bool voidExterior = config.Dungeon.Exterior.Equals("void", StringComparison.OrdinalIgnoreCase);
+
+        return assembler.Assemble(placedRooms, gridWidth, gridHeight, voidExterior);
+    }
+
+    /// <summary>
+    /// Builds room sources for each room type based on configuration.
+    /// </summary>
+    private static Dictionary<string, IRoomSource> BuildRoomSources(DungeonConfig config, int cellSize, TilesConfig tiles)
+    {
+        var sources = new Dictionary<string, IRoomSource>();
+        var proceduralSource = new ProceduralRoomSource(cellSize, tiles, config.Corridors.EffectiveDoorWidth);
+
+        // Build template source if templates_dir is specified
+        TemplateRoomSource? templateSource = null;
+        if (!string.IsNullOrEmpty(config.Rooms.TemplatesDir) && Directory.Exists(config.Rooms.TemplatesDir))
         {
-            RenderCell(tileLayer, cell, cellSize, tiles);
-            AddRoomObject(roomsGroup, cell, cellSize);
+            templateSource = new TemplateRoomSource(config.Rooms.TemplatesDir, tiles);
         }
 
-        // Place doors between adjacent cells
-        PlaceDoors(tileLayer, cells, cellSize, tiles, config.Corridors.EffectiveDoorWidth);
-
-        // For void exterior mode, add walls around floors
-        if (!fillWithWalls)
+        // For each room type, determine the source
+        foreach (var (typeName, typeConfig) in config.Rooms.Types)
         {
-            AddWallsAroundFloors(tileLayer, tiles);
+            var source = typeConfig.Source.ToLowerInvariant() switch
+            {
+                "template" => BuildTemplateSource(typeName, typeConfig, config.Rooms.TemplatesDir, tiles, templateSource),
+                "mixed" => BuildMixedSource(typeName, typeConfig, config.Rooms.TemplatesDir, tiles, proceduralSource, templateSource),
+                _ => proceduralSource as IRoomSource // "procedural" or default
+            };
+
+            sources[typeName] = source;
         }
 
-        // Add spawn points
-        AddSpawnPoints(cells, spawnsGroup, cellSize);
+        // Add default procedural source for any types not explicitly configured
+        sources.TryAdd("spawn", proceduralSource);
+        sources.TryAdd("boss", proceduralSource);
+        sources.TryAdd("treasure", proceduralSource);
+        sources.TryAdd("standard", proceduralSource);
 
-        return map;
+        return sources;
+    }
+
+    private static IRoomSource BuildTemplateSource(
+        string typeName,
+        RoomTypeConfig typeConfig,
+        string? templatesDir,
+        TilesConfig tiles,
+        TemplateRoomSource? globalTemplateSource)
+    {
+        // If specific template files are listed, use those
+        if (typeConfig.TemplateFiles.Count > 0 && !string.IsNullOrEmpty(templatesDir))
+        {
+            var files = typeConfig.TemplateFiles.Select(f => Path.Combine(templatesDir, f)).ToList();
+            return new TemplateRoomSource(files, tiles, typeName);
+        }
+
+        // Otherwise use the global template source if available
+        return globalTemplateSource as IRoomSource ?? new ProceduralRoomSource(10, tiles); // Fallback to procedural
+    }
+
+    private static CompositeRoomSource BuildMixedSource(
+        string typeName,
+        RoomTypeConfig typeConfig,
+        string? templatesDir,
+        TilesConfig tiles,
+        ProceduralRoomSource proceduralSource,
+        TemplateRoomSource? globalTemplateSource)
+    {
+        var composite = new CompositeRoomSource();
+
+        // Add procedural with weight (1 - weight_template)
+        composite.AddSource(proceduralSource, 1.0 - typeConfig.WeightTemplate);
+
+        // Add template source with weight_template
+        var templateSource = BuildTemplateSource(typeName, typeConfig, templatesDir, tiles, globalTemplateSource);
+        composite.AddSource(templateSource, typeConfig.WeightTemplate);
+
+        return composite;
     }
 
     private static Random CreateRandom(int? seed)
@@ -90,20 +141,20 @@ public class DungeonGenerator
     /// <summary>
     /// Generates an Isaac-style room layout using breadth-first growth.
     /// </summary>
-    private static List<GridCell> GenerateIsaacLayout(
-        GridCell?[,] grid,
+    private static List<LayoutCell> GenerateIsaacLayout(
+        LayoutCell?[,] grid,
         int gridWidth,
         int gridHeight,
         int targetRooms,
         Random random)
     {
-        var cells = new List<GridCell>();
-        var queue = new Queue<GridCell>();
+        var cells = new List<LayoutCell>();
+        var queue = new Queue<LayoutCell>();
 
         // Start in center
         int startX = gridWidth / 2;
         int startY = gridHeight / 2;
-        var startCell = new GridCell(startX, startY);
+        var startCell = new LayoutCell(startX, startY);
         grid[startX, startY] = startCell;
         cells.Add(startCell);
         queue.Enqueue(startCell);
@@ -115,63 +166,53 @@ public class DungeonGenerator
             // Try each direction in random order
             var shuffledDirs = _directions.OrderBy(_ => random.Next()).ToArray();
 
-            foreach (var (dx, dy) in shuffledDirs)
+            foreach (var (dx, dy, edge) in shuffledDirs)
             {
                 if (cells.Count >= targetRooms)
-                {
                     break;
-                }
 
                 int nx = current.GridX + dx;
                 int ny = current.GridY + dy;
 
                 // Check bounds
                 if (nx < 0 || nx >= gridWidth || ny < 0 || ny >= gridHeight)
-                {
                     continue;
-                }
 
                 // Check if already occupied
                 if (grid[nx, ny] != null)
-                {
                     continue;
-                }
 
                 // Key Isaac rule: only add if would have ≤2 neighbors (prevents loops)
                 int neighborCount = CountNeighbors(grid, nx, ny, gridWidth, gridHeight);
                 if (neighborCount > 2)
-                {
                     continue;
-                }
 
                 // Random chance to skip (creates variety)
                 if (random.NextDouble() < 0.3)
-                {
                     continue;
-                }
 
                 // Create new cell
-                var newCell = new GridCell(nx, ny);
+                var newCell = new LayoutCell(nx, ny);
                 grid[nx, ny] = newCell;
                 cells.Add(newCell);
                 queue.Enqueue(newCell);
 
-                // Link neighbors
-                newCell.Neighbors.Add(current);
-                current.Neighbors.Add(newCell);
+                // Link neighbors with edge info
+                newCell.SetNeighbor(OppositeEdge(edge), current);
+                current.SetNeighbor(edge, newCell);
 
                 // Link to any other adjacent cells
-                foreach (var (ddx, ddy) in _directions)
+                foreach (var (ddx, ddy, adjEdge) in _directions)
                 {
                     int adjX = nx + ddx;
                     int adjY = ny + ddy;
                     if (adjX >= 0 && adjX < gridWidth && adjY >= 0 && adjY < gridHeight)
                     {
                         var adj = grid[adjX, adjY];
-                        if (adj != null && adj != current && !newCell.Neighbors.Contains(adj))
+                        if (adj != null && adj != current && !newCell.HasNeighbor(OppositeEdge(adjEdge)))
                         {
-                            newCell.Neighbors.Add(adj);
-                            adj.Neighbors.Add(newCell);
+                            newCell.SetNeighbor(OppositeEdge(adjEdge), adj);
+                            adj.SetNeighbor(adjEdge, newCell);
                         }
                     }
                 }
@@ -181,10 +222,19 @@ public class DungeonGenerator
         return cells;
     }
 
-    private static int CountNeighbors(GridCell?[,] grid, int x, int y, int width, int height)
+    private static Edge OppositeEdge(Edge e) => e switch
+    {
+        Edge.North => Edge.South,
+        Edge.South => Edge.North,
+        Edge.East => Edge.West,
+        Edge.West => Edge.East,
+        _ => throw new ArgumentOutOfRangeException(nameof(e))
+    };
+
+    private static int CountNeighbors(LayoutCell?[,] grid, int x, int y, int width, int height)
     {
         int count = 0;
-        foreach (var (dx, dy) in _directions)
+        foreach (var (dx, dy, _) in _directions)
         {
             int nx = x + dx;
             int ny = y + dy;
@@ -193,19 +243,16 @@ public class DungeonGenerator
                 count++;
             }
         }
-
         return count;
     }
 
     /// <summary>
     /// Assigns room types based on position and distance from start.
     /// </summary>
-    private static void AssignRoomTypes(List<GridCell> cells, RoomsConfig config, Random random)
+    private static void AssignRoomTypes(List<LayoutCell> cells, RoomsConfig config, Random random)
     {
         if (cells.Count == 0)
-        {
             return;
-        }
 
         // First cell (center) is always spawn
         cells[0].Type = "spawn";
@@ -218,7 +265,7 @@ public class DungeonGenerator
         }
 
         // Dead ends (only 1 neighbor) become treasure rooms
-        var deadEnds = cells.Where(c => c.Neighbors.Count == 1 && c.Type == null).ToList();
+        var deadEnds = cells.Where(c => c.NeighborCount == 1 && c.Type == null).ToList();
         Shuffle(deadEnds, random);
 
         // Count how many treasure rooms we need
@@ -241,22 +288,21 @@ public class DungeonGenerator
         }
     }
 
-    private static GridCell FindFarthestCell(List<GridCell> cells, GridCell start)
+    private static LayoutCell FindFarthestCell(List<LayoutCell> cells, LayoutCell start)
     {
-        // BFS to find farthest cell
-        var visited = new HashSet<GridCell>();
-        var queue = new Queue<GridCell>();
+        var visited = new HashSet<LayoutCell>();
+        var queue = new Queue<LayoutCell>();
         queue.Enqueue(start);
         visited.Add(start);
 
-        GridCell farthest = start;
+        LayoutCell farthest = start;
 
         while (queue.Count > 0)
         {
             var current = queue.Dequeue();
             farthest = current;
 
-            foreach (var neighbor in current.Neighbors)
+            foreach (var neighbor in current.GetAllNeighbors())
             {
                 if (visited.Add(neighbor))
                 {
@@ -278,271 +324,66 @@ public class DungeonGenerator
     }
 
     /// <summary>
-    /// Renders a single grid cell to the tile layer.
+    /// Converts layout cells to placed rooms with blueprints.
     /// </summary>
-    private static void RenderCell(TmxTileLayer layer, GridCell cell, int cellSize, TilesConfig tiles)
+    private static List<PlacedRoom> ConvertToPlacedRooms(
+        List<LayoutCell> cells,
+        Dictionary<string, IRoomSource> roomSources,
+        Random random)
     {
-        int x = cell.GridX * cellSize;
-        int y = cell.GridY * cellSize;
+        var cellToRoom = new Dictionary<LayoutCell, PlacedRoom>();
 
-        // Fill interior with floor
-        for (int dy = 1; dy < cellSize - 1; dy++)
-        {
-            for (int dx = 1; dx < cellSize - 1; dx++)
-            {
-                layer[x + dx, y + dy] = tiles.Floor;
-            }
-        }
-
-        // Draw walls on all edges
-        for (int d = 0; d < cellSize; d++)
-        {
-            layer[x + d, y] = tiles.Wall;                    // Top
-            layer[x + d, y + cellSize - 1] = tiles.Wall;     // Bottom
-            layer[x, y + d] = tiles.Wall;                    // Left
-            layer[x + cellSize - 1, y + d] = tiles.Wall;     // Right
-        }
-    }
-
-    /// <summary>
-    /// Places doors between adjacent cells.
-    /// </summary>
-    private static void PlaceDoors(
-        TmxTileLayer layer,
-        List<GridCell> cells,
-        int cellSize,
-        TilesConfig tiles,
-        int doorWidth)
-    {
-        var processedPairs = new HashSet<(GridCell, GridCell)>();
-
+        // Create PlacedRoom for each cell
         foreach (var cell in cells)
         {
-            foreach (var neighbor in cell.Neighbors)
-            {
-                // Skip if we already processed this pair
-                var pair = cell.GridX < neighbor.GridX || (cell.GridX == neighbor.GridX && cell.GridY < neighbor.GridY)
-                    ? (cell, neighbor)
-                    : (neighbor, cell);
-
-                if (processedPairs.Contains(pair))
-                {
-                    continue;
-                }
-
-                processedPairs.Add(pair);
-
-                // Place door on shared wall
-                PlaceDoor(layer, cell, neighbor, cellSize, tiles, doorWidth);
-            }
+            var source = roomSources.TryGetValue(cell.Type!, out var s) ? s : roomSources["standard"];
+            var blueprint = source.GetBlueprints(cell.Type!, random).First();
+            var placedRoom = new PlacedRoom(cell.GridX, cell.GridY, blueprint);
+            cellToRoom[cell] = placedRoom;
         }
-    }
 
-    private static void PlaceDoor(
-        TmxTileLayer layer,
-        GridCell a,
-        GridCell b,
-        int cellSize,
-        TilesConfig tiles,
-        int doorWidth)
-    {
-        int ax = a.GridX * cellSize;
-        int ay = a.GridY * cellSize;
-        int bx = b.GridX * cellSize;
-        int by = b.GridY * cellSize;
-
-        int halfDoor = doorWidth / 2;
-        int center = cellSize / 2;
-
-        if (b.GridX > a.GridX)
+        // Link neighbors
+        foreach (var cell in cells)
         {
-            // Door between horizontally adjacent cells
-            // A's right wall and B's left wall
-            int doorXA = ax + cellSize - 1;
-            int doorXB = bx;
-            for (int d = -halfDoor; d < doorWidth - halfDoor; d++)
+            var room = cellToRoom[cell];
+            foreach (var (edge, neighbor) in cell.GetNeighborsByEdge())
             {
-                int doorY = ay + center + d;
-                if (layer.IsInBounds(doorXA, doorY))
+                if (cellToRoom.TryGetValue(neighbor, out var neighborRoom))
                 {
-                    layer[doorXA, doorY] = tiles.Door;
-                }
-
-                if (layer.IsInBounds(doorXB, doorY))
-                {
-                    layer[doorXB, doorY] = tiles.Door;
-                }
-            }
-        }
-        else if (b.GridX < a.GridX)
-        {
-            // Door between horizontally adjacent cells (reverse)
-            int doorXA = ax;
-            int doorXB = bx + cellSize - 1;
-            for (int d = -halfDoor; d < doorWidth - halfDoor; d++)
-            {
-                int doorY = ay + center + d;
-                if (layer.IsInBounds(doorXA, doorY))
-                {
-                    layer[doorXA, doorY] = tiles.Door;
-                }
-
-                if (layer.IsInBounds(doorXB, doorY))
-                {
-                    layer[doorXB, doorY] = tiles.Door;
-                }
-            }
-        }
-        else if (b.GridY > a.GridY)
-        {
-            // Door between vertically adjacent cells
-            // A's bottom wall and B's top wall
-            int doorYA = ay + cellSize - 1;
-            int doorYB = by;
-            for (int d = -halfDoor; d < doorWidth - halfDoor; d++)
-            {
-                int doorX = ax + center + d;
-                if (layer.IsInBounds(doorX, doorYA))
-                {
-                    layer[doorX, doorYA] = tiles.Door;
-                }
-
-                if (layer.IsInBounds(doorX, doorYB))
-                {
-                    layer[doorX, doorYB] = tiles.Door;
-                }
-            }
-        }
-        else if (b.GridY < a.GridY)
-        {
-            // Door between vertically adjacent cells (reverse)
-            int doorYA = ay;
-            int doorYB = by + cellSize - 1;
-            for (int d = -halfDoor; d < doorWidth - halfDoor; d++)
-            {
-                int doorX = ax + center + d;
-                if (layer.IsInBounds(doorX, doorYA))
-                {
-                    layer[doorX, doorYA] = tiles.Door;
-                }
-
-                if (layer.IsInBounds(doorX, doorYB))
-                {
-                    layer[doorX, doorYB] = tiles.Door;
-                }
-            }
-        }
-    }
-
-    private static void FillWithWalls(TmxTileLayer layer, TilesConfig tiles)
-    {
-        for (int y = 0; y < layer.Height; y++)
-        {
-            for (int x = 0; x < layer.Width; x++)
-            {
-                layer[x, y] = tiles.Wall;
-            }
-        }
-    }
-
-    private static void AddWallsAroundFloors(TmxTileLayer layer, TilesConfig tiles)
-    {
-        var wallPositions = new HashSet<(int x, int y)>();
-
-        for (int y = 0; y < layer.Height; y++)
-        {
-            for (int x = 0; x < layer.Width; x++)
-            {
-                var tile = layer[x, y];
-                if (tile == tiles.Floor || tile == tiles.Door)
-                {
-                    // Check all 8 neighbors
-                    for (int dy = -1; dy <= 1; dy++)
-                    {
-                        for (int dx = -1; dx <= 1; dx++)
-                        {
-                            if (dx == 0 && dy == 0)
-                            {
-                                continue;
-                            }
-
-                            int nx = x + dx;
-                            int ny = y + dy;
-
-                            if (layer.IsInBounds(nx, ny) && layer[nx, ny] == 0)
-                            {
-                                wallPositions.Add((nx, ny));
-                            }
-                        }
-                    }
+                    room.Neighbors[edge] = neighborRoom;
                 }
             }
         }
 
-        foreach (var (wx, wy) in wallPositions)
-        {
-            layer[wx, wy] = tiles.Wall;
-        }
-    }
-
-    private static void AddRoomObject(TmxObjectGroup group, GridCell cell, int cellSize)
-    {
-        group.AddObject(
-            $"Room_{cell.Type}_{group.Objects.Count}",
-            cell.Type ?? "standard",
-            cell.GridX * cellSize * DefaultTileSize,
-            cell.GridY * cellSize * DefaultTileSize,
-            cellSize * DefaultTileSize,
-            cellSize * DefaultTileSize);
-    }
-
-    private static void AddSpawnPoints(List<GridCell> cells, TmxObjectGroup spawnsGroup, int cellSize)
-    {
-        // Player spawn in spawn room
-        var spawnRoom = cells.FirstOrDefault(c => c.Type == "spawn") ?? cells.First();
-        AddSpawnPoint(spawnsGroup, spawnRoom, cellSize, "PlayerSpawn", "spawn");
-
-        // Boss spawn in boss room
-        var bossRoom = cells.FirstOrDefault(c => c.Type == "boss");
-        if (bossRoom != null)
-        {
-            AddSpawnPoint(spawnsGroup, bossRoom, cellSize, "BossSpawn", "boss");
-        }
-
-        // Treasure spawns in treasure rooms
-        var treasureRooms = cells.Where(c => c.Type == "treasure").ToList();
-        for (int i = 0; i < treasureRooms.Count; i++)
-        {
-            AddSpawnPoint(spawnsGroup, treasureRooms[i], cellSize, $"TreasureSpawn_{i}", "treasure");
-        }
-    }
-
-    private static void AddSpawnPoint(TmxObjectGroup group, GridCell cell, int cellSize, string name, string type)
-    {
-        int centerX = cell.GridX * cellSize + cellSize / 2;
-        int centerY = cell.GridY * cellSize + cellSize / 2;
-
-        group.AddObject(
-            name,
-            type,
-            centerX * DefaultTileSize,
-            centerY * DefaultTileSize);
+        return cellToRoom.Values.ToList();
     }
 
     /// <summary>
-    /// Represents a cell in the grid layout.
+    /// Represents a cell in the grid layout with edge-based neighbor tracking.
     /// </summary>
-    private sealed class GridCell
+    private sealed class LayoutCell
     {
         public int GridX { get; }
         public int GridY { get; }
         public string? Type { get; set; }
-        public List<GridCell> Neighbors { get; } = [];
 
-        public GridCell(int gridX, int gridY)
+        private readonly Dictionary<Edge, LayoutCell> _neighbors = [];
+
+        public int NeighborCount => _neighbors.Count;
+
+        public LayoutCell(int gridX, int gridY)
         {
             GridX = gridX;
             GridY = gridY;
         }
+
+        public void SetNeighbor(Edge edge, LayoutCell neighbor) => _neighbors[edge] = neighbor;
+
+        public bool HasNeighbor(Edge edge) => _neighbors.ContainsKey(edge);
+
+        public Dictionary<Edge, LayoutCell>.ValueCollection GetAllNeighbors() => _neighbors.Values;
+
+        public IEnumerable<(Edge edge, LayoutCell neighbor)> GetNeighborsByEdge()
+            => _neighbors.Select(kvp => (kvp.Key, kvp.Value));
     }
 }

@@ -236,6 +236,13 @@ public class RoomsConfig
     public IntRange Count { get; private set; } = new(8, 12);
 
     /// <summary>
+    /// Gets or sets the directory containing TMX room templates.
+    /// If specified, templates from this directory can be used for room generation.
+    /// </summary>
+    [YamlMember(Alias = "templates_dir")]
+    public string? TemplatesDir { get; set; }
+
+    /// <summary>
     /// Gets or sets the room type configurations.
     /// </summary>
     public Dictionary<string, RoomTypeConfig> Types { get; set; } = [];
@@ -277,6 +284,28 @@ public class RoomTypeConfig
     /// Gets or sets the placement constraint (e.g., "far_from_spawn", "near_center").
     /// </summary>
     public string? Placement { get; set; }
+
+    /// <summary>
+    /// Gets or sets the room source type: "procedural" (default), "template", or "mixed".
+    /// - procedural: Generate rooms algorithmically (current behavior)
+    /// - template: Load rooms from TMX files
+    /// - mixed: Randomly choose between procedural and template based on weight_template
+    /// </summary>
+    public string Source { get; set; } = "procedural";
+
+    /// <summary>
+    /// Gets or sets the specific template files to use for this room type.
+    /// If empty, all templates matching the room type name will be used.
+    /// </summary>
+    [YamlMember(Alias = "template_files")]
+    public List<string> TemplateFiles { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the probability (0.0-1.0) of using a template when source is "mixed".
+    /// Default is 0.5 (50% chance of template vs procedural).
+    /// </summary>
+    [YamlMember(Alias = "weight_template")]
+    public double WeightTemplate { get; set; } = 0.5;
 }
 
 /// <summary>
