@@ -711,6 +711,67 @@ public class DungeonGeneratorTests
     }
 
     [Fact]
+    public void Generate_ExteriorVoid_CorridorsStillHaveWalls()
+    {
+        // Arrange
+        var config = CreateSimpleConfig();
+        config.Dungeon.Seed = 42;
+        config.Dungeon.Exterior = "void";
+
+        // Act
+        var map = DungeonGenerator.Generate(config);
+
+        // Assert - for each corridor floor tile, at least some neighbors should be walls
+        var tileLayer = map.GetTileLayer("Tiles")!;
+        var roomsGroup = map.GetObjectGroup("Rooms")!;
+
+        var corridorTilesWithWallNeighbors = 0;
+        var totalCorridorTiles = 0;
+
+        for (var y = 1; y < map.Height - 1; y++)
+        {
+            for (var x = 1; x < map.Width - 1; x++)
+            {
+                if (tileLayer[x, y] == 1) // Floor tile
+                {
+                    var inRoom = roomsGroup.Objects.Any(room =>
+                    {
+                        var rx = (int)(room.X / 16);
+                        var ry = (int)(room.Y / 16);
+                        var rw = (int)(room.Width!.Value / 16);
+                        var rh = (int)(room.Height!.Value / 16);
+                        return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
+                    });
+
+                    if (!inRoom)
+                    {
+                        totalCorridorTiles++;
+                        // Check if any neighbor is a wall
+                        var hasWallNeighbor =
+                            tileLayer[x - 1, y] == 2 ||
+                            tileLayer[x + 1, y] == 2 ||
+                            tileLayer[x, y - 1] == 2 ||
+                            tileLayer[x, y + 1] == 2;
+
+                        if (hasWallNeighbor)
+                        {
+                            corridorTilesWithWallNeighbors++;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Even in void mode, corridor tiles should have wall neighbors
+        if (totalCorridorTiles > 0)
+        {
+            var ratio = (double)corridorTilesWithWallNeighbors / totalCorridorTiles;
+            ratio.Should().BeGreaterThan(0.5,
+                "corridor tiles should have wall neighbors even in 'void' exterior mode");
+        }
+    }
+
+    [Fact]
     public void Generate_ExteriorWalls_CorridorsHaveWallsSurrounding()
     {
         // Arrange

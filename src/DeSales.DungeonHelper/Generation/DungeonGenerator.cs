@@ -59,6 +59,12 @@ public class DungeonGenerator
         // Connect rooms with corridors
         GenerateCorridors(rooms, tileLayer, tiles, config.Corridors.Width);
 
+        // For void exterior mode, add walls around all floor/door tiles
+        if (!fillWithWalls)
+        {
+            AddWallsAroundFloors(tileLayer, tiles);
+        }
+
         // Add spawn points
         AddSpawnPoints(rooms, spawnsGroup);
 
@@ -490,6 +496,48 @@ public class DungeonGenerator
             {
                 layer[x, y] = tiles.Wall;
             }
+        }
+    }
+
+    private static void AddWallsAroundFloors(TmxTileLayer layer, TilesConfig tiles)
+    {
+        // Find all positions that need walls (adjacent to floor/door tiles but currently void)
+        var wallPositions = new HashSet<(int x, int y)>();
+
+        for (var y = 0; y < layer.Height; y++)
+        {
+            for (var x = 0; x < layer.Width; x++)
+            {
+                var tile = layer[x, y];
+                if (tile == tiles.Floor || tile == tiles.Door)
+                {
+                    // Check all 8 neighbors (including diagonals for corners)
+                    for (var dy = -1; dy <= 1; dy++)
+                    {
+                        for (var dx = -1; dx <= 1; dx++)
+                        {
+                            if (dx == 0 && dy == 0)
+                            {
+                                continue;
+                            }
+
+                            var nx = x + dx;
+                            var ny = y + dy;
+
+                            if (layer.IsInBounds(nx, ny) && layer[nx, ny] == 0)
+                            {
+                                wallPositions.Add((nx, ny));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Place walls at all identified positions
+        foreach (var (wx, wy) in wallPositions)
+        {
+            layer[wx, wy] = tiles.Wall;
         }
     }
 
