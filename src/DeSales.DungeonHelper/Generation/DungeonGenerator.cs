@@ -11,7 +11,7 @@ public class DungeonGenerator
     private const int DefaultTileSize = 16;
     private const int DefaultCellSize = 10; // Each grid cell is 10x10 tiles
 
-    private static readonly (int dx, int dy)[] Directions = [(0, -1), (1, 0), (0, 1), (-1, 0)];
+    private static readonly (int dx, int dy)[] _directions = [(0, -1), (1, 0), (0, 1), (-1, 0)];
 
     /// <summary>
     /// Generates a dungeon based on the provided configuration.
@@ -113,7 +113,7 @@ public class DungeonGenerator
             var current = queue.Dequeue();
 
             // Try each direction in random order
-            var shuffledDirs = Directions.OrderBy(_ => random.Next()).ToArray();
+            var shuffledDirs = _directions.OrderBy(_ => random.Next()).ToArray();
 
             foreach (var (dx, dy) in shuffledDirs)
             {
@@ -161,7 +161,7 @@ public class DungeonGenerator
                 current.Neighbors.Add(newCell);
 
                 // Link to any other adjacent cells
-                foreach (var (ddx, ddy) in Directions)
+                foreach (var (ddx, ddy) in _directions)
                 {
                     int adjX = nx + ddx;
                     int adjY = ny + ddy;
@@ -184,7 +184,7 @@ public class DungeonGenerator
     private static int CountNeighbors(GridCell?[,] grid, int x, int y, int width, int height)
     {
         int count = 0;
-        foreach (var (dx, dy) in Directions)
+        foreach (var (dx, dy) in _directions)
         {
             int nx = x + dx;
             int ny = y + dy;
