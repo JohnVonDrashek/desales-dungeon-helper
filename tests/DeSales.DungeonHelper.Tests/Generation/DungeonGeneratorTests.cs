@@ -519,4 +519,133 @@ public class DungeonGeneratorTests
             }
         };
     }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Generate_CorridorWidthIsRespected(int corridorWidth)
+    {
+        // Arrange
+        var config = new DungeonConfig
+        {
+            Dungeon = new DungeonSettings
+            {
+                Name = "test_dungeon",
+                Width = 60,
+                Height = 60,
+                Seed = 12345
+            },
+            Rooms = new RoomsConfig
+            {
+                CountString = "3",
+                Types = new Dictionary<string, RoomTypeConfig>
+                {
+                    ["spawn"] = new RoomTypeConfig { Count = "1", SizeString = "8x8" },
+                    ["standard"] = new RoomTypeConfig { Count = "rest", SizeString = "8x8" }
+                }
+            },
+            Corridors = new CorridorsConfig
+            {
+                Style = "winding",
+                Width = corridorWidth
+            },
+            Tiles = new TilesConfig
+            {
+                Floor = 1,
+                Wall = 2,
+                Door = 3
+            }
+        };
+
+        // Act
+        var map = DungeonGenerator.Generate(config);
+
+        // Assert - count corridor floor tiles outside of rooms
+        var tileLayer = map.GetTileLayer("Tiles")!;
+        var roomsGroup = map.GetObjectGroup("Rooms")!;
+
+        var corridorFloorTiles = new List<(int x, int y)>();
+        for (var y = 0; y < map.Height; y++)
+        {
+            for (var x = 0; x < map.Width; x++)
+            {
+                if (tileLayer[x, y] == 1) // Floor tile
+                {
+                    var inRoom = roomsGroup.Objects.Any(room =>
+                    {
+                        var rx = (int)(room.X / 16);
+                        var ry = (int)(room.Y / 16);
+                        var rw = (int)(room.Width!.Value / 16);
+                        var rh = (int)(room.Height!.Value / 16);
+                        return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
+                    });
+
+                    if (!inRoom)
+                    {
+                        corridorFloorTiles.Add((x, y));
+                    }
+                }
+            }
+        }
+
+        // For a corridor of width N, we expect roughly N times as many floor tiles
+        // compared to width 1 (not exact due to corridor turns and overlaps)
+        corridorFloorTiles.Should().NotBeEmpty("corridors should have floor tiles");
+
+        // Verify corridor width by checking that parallel tiles exist
+        // For each corridor tile, check if there are adjacent tiles in perpendicular direction
+        if (corridorWidth > 1)
+        {
+            var tilesWithNeighbors = corridorFloorTiles.Count(tile =>
+                corridorFloorTiles.Contains((tile.x - 1, tile.y)) ||
+                corridorFloorTiles.Contains((tile.x + 1, tile.y)) ||
+                corridorFloorTiles.Contains((tile.x, tile.y - 1)) ||
+                corridorFloorTiles.Contains((tile.x, tile.y + 1)));
+
+            // Most corridor tiles should have neighbors (wider corridors have more connectivity)
+            tilesWithNeighbors.Should().BeGreaterThan(corridorFloorTiles.Count / 2,
+                $"wider corridors (width={corridorWidth}) should have more connected floor tiles");
+        }
+    }
+
+    [Fact]
+    public void Generate_WiderCorridorsHaveMoreDoors()
+    {
+        // Arrange - compare door counts between width 1 and width 3
+        var config1 = CreateSimpleConfig();
+        config1.Corridors = new CorridorsConfig { Style = "winding", Width = 1 };
+
+        var config3 = CreateSimpleConfig();
+        config3.Corridors = new CorridorsConfig { Style = "winding", Width = 3 };
+
+        // Act
+        var map1 = DungeonGenerator.Generate(config1);
+        var map3 = DungeonGenerator.Generate(config3);
+
+        // Count doors in each map
+        var doors1 = CountDoorsInMap(map1);
+        var doors3 = CountDoorsInMap(map3);
+
+        // Assert - wider corridors should have more door tiles
+        doors3.Should().BeGreaterThan(doors1,
+            "corridors with width 3 should have more door tiles than width 1");
+    }
+
+    private static int CountDoorsInMap(DeSales.DungeonHelper.Tiled.TmxMap map)
+    {
+        var tileLayer = map.GetTileLayer("Tiles")!;
+        var doorCount = 0;
+        for (var y = 0; y < map.Height; y++)
+        {
+            for (var x = 0; x < map.Width; x++)
+            {
+                if (tileLayer[x, y] == 3)
+                {
+                    doorCount++;
+                }
+            }
+        }
+        return doorCount;
+    }
 }

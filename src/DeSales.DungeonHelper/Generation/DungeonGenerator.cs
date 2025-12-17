@@ -49,7 +49,7 @@ public class DungeonGenerator
         }
 
         // Connect rooms with corridors
-        GenerateCorridors(rooms, tileLayer, tiles);
+        GenerateCorridors(rooms, tileLayer, tiles, config.Corridors.Width);
 
         // Add spawn points
         AddSpawnPoints(rooms, spawnsGroup);
@@ -197,7 +197,7 @@ public class DungeonGenerator
         return false;
     }
 
-    private static void GenerateCorridors(List<GeneratedRoom> rooms, TmxTileLayer layer, TilesConfig tiles)
+    private static void GenerateCorridors(List<GeneratedRoom> rooms, TmxTileLayer layer, TilesConfig tiles, int corridorWidth)
     {
         if (rooms.Count < 2)
         {
@@ -245,7 +245,7 @@ public class DungeonGenerator
         // Draw corridors for each edge
         foreach (var (fromIdx, toIdx) in edges)
         {
-            DrawCorridor(rooms[fromIdx], rooms[toIdx], layer, tiles, rooms);
+            DrawCorridor(rooms[fromIdx], rooms[toIdx], layer, tiles, rooms, corridorWidth);
         }
     }
 
@@ -261,7 +261,7 @@ public class DungeonGenerator
         return Math.Sqrt(dx * dx + dy * dy);
     }
 
-    private static void DrawCorridor(GeneratedRoom from, GeneratedRoom to, TmxTileLayer layer, TilesConfig tiles, List<GeneratedRoom> allRooms)
+    private static void DrawCorridor(GeneratedRoom from, GeneratedRoom to, TmxTileLayer layer, TilesConfig tiles, List<GeneratedRoom> allRooms, int corridorWidth)
     {
         // Find the best exit points from each room (these are wall positions)
         var (fromExit, toExit) = FindBestExitPoints(from, to);
@@ -272,12 +272,42 @@ public class DungeonGenerator
 
         // Draw L-shaped corridor between the two corridor start points
         // Use the Y of the first point for horizontal, X of second for vertical
-        DrawHorizontalSegment(fromCorridorStart.x, toCorridorStart.x, fromCorridorStart.y, layer, tiles, allRooms);
-        DrawVerticalSegment(fromCorridorStart.y, toCorridorStart.y, toCorridorStart.x, layer, tiles, allRooms);
+        DrawHorizontalSegment(fromCorridorStart.x, toCorridorStart.x, fromCorridorStart.y, layer, tiles, allRooms, corridorWidth);
+        DrawVerticalSegment(fromCorridorStart.y, toCorridorStart.y, toCorridorStart.x, layer, tiles, allRooms, corridorWidth);
 
-        // Place doors at exit points
-        layer[fromExit.x, fromExit.y] = tiles.Door;
-        layer[toExit.x, toExit.y] = tiles.Door;
+        // Place doors at exit points (expand door placement for wider corridors)
+        PlaceDoorsForWidth(fromExit.x, fromExit.y, from, layer, tiles, corridorWidth);
+        PlaceDoorsForWidth(toExit.x, toExit.y, to, layer, tiles, corridorWidth);
+    }
+
+    private static void PlaceDoorsForWidth(int x, int y, GeneratedRoom room, TmxTileLayer layer, TilesConfig tiles, int corridorWidth)
+    {
+        // Determine if door is on horizontal or vertical wall
+        bool isHorizontalWall = y == room.Y || y == room.Y + room.Height - 1;
+
+        int offset = (corridorWidth - 1) / 2;
+
+        for (int i = -offset; i <= offset + (corridorWidth - 1) % 2; i++)
+        {
+            int doorX = isHorizontalWall ? x + i : x;
+            int doorY = isHorizontalWall ? y : y + i;
+
+            // Only place door if within room wall bounds (not corners)
+            if (isHorizontalWall)
+            {
+                if (doorX > room.X && doorX < room.X + room.Width - 1 && layer.IsInBounds(doorX, doorY))
+                {
+                    layer[doorX, doorY] = tiles.Door;
+                }
+            }
+            else
+            {
+                if (doorY > room.Y && doorY < room.Y + room.Height - 1 && layer.IsInBounds(doorX, doorY))
+                {
+                    layer[doorX, doorY] = tiles.Door;
+                }
+            }
+        }
     }
 
     private static (int x, int y) GetPointOutsideRoom((int x, int y) exitPoint, GeneratedRoom room)
@@ -357,25 +387,47 @@ public class DungeonGenerator
         return Math.Max(min, Math.Min(max, value));
     }
 
-    private static void DrawHorizontalSegment(int x1, int x2, int y, TmxTileLayer layer, TilesConfig tiles, List<GeneratedRoom> allRooms)
+    private static void DrawHorizontalSegment(int x1, int x2, int y, TmxTileLayer layer, TilesConfig tiles, List<GeneratedRoom> allRooms, int corridorWidth)
     {
         var minX = Math.Min(x1, x2);
         var maxX = Math.Max(x1, x2);
 
+        // Calculate offset for corridor width (center the corridor on the line)
+        int offset = (corridorWidth - 1) / 2;
+
         for (var x = minX; x <= maxX; x++)
         {
-            PlaceCorridorTile(x, y, layer, tiles, allRooms);
+            // Draw multiple rows for corridor width
+            for (int dy = -offset; dy <= offset + (corridorWidth - 1) % 2; dy++)
+            {
+                int tileY = y + dy;
+                if (layer.IsInBounds(x, tileY))
+                {
+                    PlaceCorridorTile(x, tileY, layer, tiles, allRooms);
+                }
+            }
         }
     }
 
-    private static void DrawVerticalSegment(int y1, int y2, int x, TmxTileLayer layer, TilesConfig tiles, List<GeneratedRoom> allRooms)
+    private static void DrawVerticalSegment(int y1, int y2, int x, TmxTileLayer layer, TilesConfig tiles, List<GeneratedRoom> allRooms, int corridorWidth)
     {
         var minY = Math.Min(y1, y2);
         var maxY = Math.Max(y1, y2);
 
+        // Calculate offset for corridor width (center the corridor on the line)
+        int offset = (corridorWidth - 1) / 2;
+
         for (var y = minY; y <= maxY; y++)
         {
-            PlaceCorridorTile(x, y, layer, tiles, allRooms);
+            // Draw multiple columns for corridor width
+            for (int dx = -offset; dx <= offset + (corridorWidth - 1) % 2; dx++)
+            {
+                int tileX = x + dx;
+                if (layer.IsInBounds(tileX, y))
+                {
+                    PlaceCorridorTile(tileX, y, layer, tiles, allRooms);
+                }
+            }
         }
     }
 
