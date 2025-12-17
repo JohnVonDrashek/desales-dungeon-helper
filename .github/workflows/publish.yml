@@ -53,7 +53,8 @@ jobs:
           for package in ./artifacts/*.nupkg; do
             if [[ ! "$package" == *.snupkg ]]; then
               echo "Pushing $package..."
-              dotnet nuget push "$package" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+              # --no-symbols prevents auto-pushing snupkg (which fails without PDB files)
+              dotnet nuget push "$package" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate --no-symbols
             fi
           done
 
