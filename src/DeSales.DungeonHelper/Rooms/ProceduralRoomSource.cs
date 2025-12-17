@@ -37,25 +37,16 @@ public sealed class ProceduralRoomSource : IRoomSource
     {
         var tiles = new int[_cellSize, _cellSize];
 
-        // Fill interior with floor
+        // Initialize all as walls
+        for (int y = 0; y < _cellSize; y++)
+            for (int x = 0; x < _cellSize; x++)
+                tiles[x, y] = _tiles.Wall;
+
+        // Carve interior as floor
         for (int y = 1; y < _cellSize - 1; y++)
-        {
             for (int x = 1; x < _cellSize - 1; x++)
-            {
                 tiles[x, y] = _tiles.Floor;
-            }
-        }
 
-        // Draw walls on all edges
-        for (int d = 0; d < _cellSize; d++)
-        {
-            tiles[d, 0] = _tiles.Wall;                  // Top
-            tiles[d, _cellSize - 1] = _tiles.Wall;     // Bottom
-            tiles[0, d] = _tiles.Wall;                  // Left
-            tiles[_cellSize - 1, d] = _tiles.Wall;     // Right
-        }
-
-        // Create centered door slots on all four edges
         var doorSlots = new[]
         {
             DoorSlot.Centered(Edge.North, _cellSize, _doorWidth),
